@@ -85,7 +85,7 @@ int main(int argc, const char** argv) {
     boost::program_options::options_description desc("Allowed options");
     desc.add_options()
         ("help", "produce help message")
-        ("input", boost::program_options::value<std::string>(), "the folder to process, may contain several images")
+        ("input", boost::program_options::value<std::string>(), "input file path")
         ("bins", boost::program_options::value<int>()->default_value(5), "number of bins used for color histograms")
         ("neighborhood", boost::program_options::value<int>()->default_value(1), "neighborhood size used for smoothing prior")
         ("confidence", boost::program_options::value<float>()->default_value(0.1), "minimum confidence used for block update")
@@ -95,9 +95,10 @@ int main(int argc, const char** argv) {
         ("verbose", "show additional information while processing")
         ("csv", "save segmentation as CSV file")
         ("contour", "save contour image of segmentation")
+		("index", "save label indexes")
         ("labels", "save label image of segmentation")
         ("mean", "save mean colored image of segmentation")
-        ("output", boost::program_options::value<std::string>()->default_value("output"), "specify the output directory (default is ./output)");
+        ("output", boost::program_options::value<std::string>()->default_value("output"), "output file path");
 
     boost::program_options::positional_options_description positionals;
     positionals.add("input", 1);
@@ -111,52 +112,15 @@ int main(int argc, const char** argv) {
         return 1;
     }
     
-    boost::filesystem::path outputDir(parameters["output"].as<std::string>());
-    if (!boost::filesystem::is_directory(outputDir)) {
-        boost::filesystem::create_directory(outputDir);
-    }
+    boost::filesystem::path outputPath(parameters["output"].as<std::string>());
     
-    boost::filesystem::path inputDir(parameters["input"].as<std::string>());
-    if (!boost::filesystem::is_directory(inputDir)) {
-        std::cout << "Input directory not found ..." << std::endl;
-        return 1;
-    }
+    boost::filesystem::path inputPath(parameters["input"].as<std::string>());
+
     
     bool verbose = false;
     if (parameters.find("verbose") != parameters.end()) {
         verbose = true;
     }
-    
-    std::vector<boost::filesystem::path> pathVector;
-    std::vector<boost::filesystem::path> images;
-    
-    std::copy(boost::filesystem::directory_iterator(inputDir), boost::filesystem::directory_iterator(), std::back_inserter(pathVector));
-
-    std::sort(pathVector.begin(), pathVector.end());
-    
-    std::string extension;
-    int count = 0;
-    
-    for (std::vector<boost::filesystem::path>::const_iterator iterator(pathVector.begin()); iterator != pathVector.end(); ++iterator) {
-        if (boost::filesystem::is_regular_file(*iterator)) {
-            
-            // Check supported file extensions.
-            extension = iterator->extension().string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-            
-            if (extension == ".png" || extension == ".jpg" || extension == ".jpeg") {
-                images.push_back(*iterator);
-                
-                if (verbose == true) {
-                    std::cout << "Found " << iterator->string() << " ..." << std::endl;
-                }
-                
-                ++count;
-            }
-        }
-    }
-    
-    std::cout << count << " images total ..." << std::endl;
     
     int iterations = parameters["iterations"].as<int>();
     int numberOfBins = parameters["bins"].as<int>();
@@ -168,8 +132,8 @@ int main(int argc, const char** argv) {
     boost::timer timer;
     double totalTime = 0;
     
-    for(std::vector<boost::filesystem::path>::iterator iterator = images.begin(); iterator != images.end(); ++iterator) {
-        cv::Mat image = cv::imread(iterator->string());
+    {
+        cv::Mat image = cv::imread(inputPath.string());
         
         SEEDSRevisedMeanPixels seeds(image, superpixels, numberOfBins, neighborhoodSize, minimumConfidence, spatialWeight, SEEDSRevised::BGR);
 
@@ -179,66 +143,68 @@ int main(int argc, const char** argv) {
         totalTime += timer.elapsed();
         
         if (verbose == true) {
-            std::cout << Integrity::countSuperpixels(seeds.getLabels(), image.rows, image.cols) << " superpixels for " << iterator->string() << " seconds ..." << std::endl;
+            std::cout << Integrity::countSuperpixels(seeds.getLabels(), image.rows, image.cols) << " superpixels for " << inputPath.string() << " seconds ..." << std::endl;
         }
 
         if (parameters.find("contour") != parameters.end()) {
 
-            boost::filesystem::path extension = iterator->filename().extension();
-            int position = iterator->filename().string().find(extension.string());
-            std::string store = outputDir.string() + DIRECTORY_SEPARATOR + iterator->filename().string().substr(0, position) + "_contours.png";
+            boost::filesystem::path extension = inputPath.filename().extension();
+            int position = inputPath.filename().string().find(extension.string());
+            std::string store = outputPath.string();
 
             int bgr[] = {0, 0, 204};
             cv::Mat contourImage = Draw::contourImage(seeds.getLabels(), image, bgr);
             cv::imwrite(store, contourImage);
 
             if (verbose == true) {
-                std::cout << "Image " << iterator->string() << " with contours saved to " << store << " ..." << std::endl;
+                std::cout << "Image " << inputPath.string() << " with contours saved to " << store << " ..." << std::endl;
             }
         }
 
         if (parameters.find("labels") != parameters.end()) {
 
-            boost::filesystem::path extension = iterator->filename().extension();
-            int position = iterator->filename().string().find(extension.string());
-            std::string store = outputDir.string() + DIRECTORY_SEPARATOR + iterator->filename().string().substr(0, position) + "_labels.png";
+            boost::filesystem::path extension = inputPath.filename().extension();
+            int position = inputPath.filename().string().find(extension.string());
+			std::string store = outputPath.string();
             
             cv::Mat labelImage = Draw::labelImage(seeds.getLabels(), image);
             cv::imwrite(store, labelImage);
 
             if (verbose == true) {
-                std::cout << "Image " << iterator->string() << " with labels saved to " << store << " ..." << std::endl;
+                std::cout << "Image " << inputPath.string() << " with labels saved to " << store << " ..." << std::endl;
             }
         }
         
         if (parameters.find("mean") != parameters.end()) {
 
-            boost::filesystem::path extension = iterator->extension();
-            int position = iterator->filename().string().find(extension.string());
-            std::string store = outputDir.string() + DIRECTORY_SEPARATOR + iterator->filename().string().substr(0, position) + "_mean.png";
+            boost::filesystem::path extension = inputPath.extension();
+            int position = inputPath.filename().string().find(extension.string());
+			std::string store = outputPath.string();
 
             cv::Mat meanImage = Draw::meanImage(seeds.getLabels(), image);
             cv::imwrite(store, meanImage);
 
             if (verbose == true) {
-                std::cout << "Image " << iterator->string() << " with mean colors saved to " << store << " ..." << std::endl;
+                std::cout << "Image " << inputPath.string() << " with mean colors saved to " << store << " ..." << std::endl;
             }
         }
 
-        if (parameters.find("csv") != parameters.end()) {
+     
+		if (parameters.find("index") != parameters.end()) {
+			boost::filesystem::path extension = inputPath.filename().extension();
+			int position = inputPath.filename().string().find(extension.string());
+			std::string store = outputPath.string();
 
-            boost::filesystem::path extension = iterator->extension();
-            int position = iterator->filename().string().find(extension.string());
-            boost::filesystem::path csvFile(outputDir.string() + DIRECTORY_SEPARATOR + iterator->filename().string().substr(0, position) + ".csv");
-            Export::CSV(seeds.getLabels(), image.rows, image.cols, csvFile);
+			cv::Mat labelImage = Draw::indexImage(seeds.getLabels(), image);
+			cv::imwrite(store, labelImage);
 
-            if (verbose == true) {
-                std::cout << "Labels for image " << iterator->string() << " saved in " << csvFile.string() << " ..." << std::endl;
-            }
-        }
+			if (verbose == true) {
+				std::cout << "Image " << inputPath.string() << " with indexed labels saved to " << store << " ..." << std::endl;
+			}
+		}
     }
     
-    std::cout << "On average, " << totalTime/images.size() << " seconds needed ..." << std::endl;
+    std::cout << totalTime << " seconds needed ..." << std::endl;
     
     return 0;
 }
