@@ -64,6 +64,16 @@
 #include "Tools.h"
 #include "SeedsRevised.h"
 
+cv::Mat Draw::indexImage(int** labels, const cv::Mat &image) {
+	cv::Mat newImage = cv::Mat(image.rows, image.cols, CV_16UC1);
+	for (int i = 0; i < newImage.rows; i++) {
+		for (int j = 0; j < newImage.cols; j++) {
+			newImage.at<unsigned short>(i, j) = (unsigned short)(labels[i][j]);
+		}
+	}
+	return newImage;
+}
+
 cv::Mat Draw::contourImage(int** labels, const cv::Mat &image, int* bgr) {
     
     cv::Mat newImage = image.clone();
