@@ -176,6 +176,10 @@ public:
      * @return 
      */
     static cv::Mat meanImage(int** labels, const cv::Mat &image);
+     
+        
+    static cv::Mat indexImage(int** labels, const cv::Mat &image);
+        
 
 };
 
