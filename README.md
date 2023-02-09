@@ -50,7 +50,7 @@ SEEDS Revised is based on [OpenCV](http://opencv.org/) (see [here](http://docs.o
     # Install OpenCV using the link above or:
     sudo apt-get install libopencv-dev
     # Clone the repository:
-    $ git clone https://github.com/davidstutz/seeds-revised.git
+    $ git clone https://github.com/Mak-Ta-Reque/seeds-revised.git
     # Go to the build subfolder to generate the CMake files:
     $ cd seeds-revised/build
     $ cmake ..
